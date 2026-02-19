@@ -14,8 +14,7 @@ const prisma = new PrismaClient({
 
 const app = express();
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || 'uma_chave_muito_segura_e_longa_aqui';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 app.use(cors());
 app.use(express.json());
@@ -48,8 +47,12 @@ app.post('/auth/register', async (req, res) => {
       .status(201)
       .json({ message: 'Usuário criado com sucesso!', userId: user.id });
   } catch (error) {
-    console.error(error);
-    res.status(400).json({ error: 'Erro ao criar usuário.' });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao criar usuário.',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -100,10 +103,12 @@ app.put('/transactions/:id', async (req, res) => {
     });
     res.json(updated);
   } catch (error) {
-    console.error('Erro no Prisma:', error);
-    res
-      .status(500)
-      .json({ error: 'Erro ao atualizar', details: error.message });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao atualizar a transação.',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -116,7 +121,12 @@ app.delete('/transactions/:id', async (req, res) => {
     });
     res.status(204).send();
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao excluir' });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao excluir a transação.',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -154,10 +164,12 @@ app.post('/transactions', async (req, res) => {
     });
     res.status(201).json(newTransaction);
   } catch (error) {
-    console.error('Erro Prisma:', error);
-    res
-      .status(500)
-      .json({ error: 'Erro ao salvar transação.', details: error.message });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao salvar transação.',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -187,8 +199,12 @@ app.get('/transactions/:familyId', async (req, res) => {
     });
     res.json(transactions);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar transações.' });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao buscar transações.',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -203,7 +219,12 @@ app.put('/categories/:id', async (req, res) => {
     });
     res.json(updated);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao atualizar categoria' });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao atualizar categoria',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -216,9 +237,12 @@ app.delete('/categories/:id', async (req, res) => {
     });
     res.status(204).send();
   } catch (error) {
+    console.error('ERRO DETALHADO:', error);
     res.status(500).json({
       error:
         'Erro ao excluir. Verifique se há transações usando esta categoria.',
+      details: error.message,
+      code: error.code,
     });
   }
 });
@@ -232,7 +256,12 @@ app.post('/categories', async (req, res) => {
     });
     res.status(201).json(newCategory);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao criar categoria' });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao criar categoria',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -244,7 +273,12 @@ app.get('/categories', async (req, res) => {
     });
     res.json(categories);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar categorias' });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao buscar categorias',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -254,7 +288,6 @@ app.get('/families', async (req, res) => {
     const families = await prisma.families.findMany();
     res.json(families);
   } catch (error) {
-    // Isso vai cuspir o erro real no log do Render e na tela do navegador
     console.error('ERRO DETALHADO:', error);
     res.status(500).json({
       error: 'Erro ao buscar famílias',
@@ -270,7 +303,12 @@ app.get('/currencies', async (req, res) => {
     const currencies = await prisma.currencies.findMany();
     res.json(currencies);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar moedas' });
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({
+      error: 'Erro ao buscar moedas',
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
