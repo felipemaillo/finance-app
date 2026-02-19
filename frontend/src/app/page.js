@@ -17,6 +17,7 @@ import {
   Repeat,
 } from 'lucide-react';
 import TransactionForm from './components/TransactionForm';
+import Loading from './components/Loading';
 import { API_URL } from './lib/api';
 import { useAppContext } from './context/AppContext';
 
@@ -41,6 +42,7 @@ const translations = {
     userDefault: 'Usuário',
     dateLabel: 'Data:',
     yearLabel: 'Ano',
+    loading: 'Carregando dados...',
     months: [
       'Janeiro',
       'Fevereiro',
@@ -76,6 +78,7 @@ const translations = {
     userDefault: 'User',
     dateLabel: 'Date:',
     yearLabel: 'Year',
+    loading: 'Loading data...',
     months: [
       'January',
       'February',
@@ -111,10 +114,11 @@ const translations = {
     userDefault: 'Utente',
     dateLabel: 'Data:',
     yearLabel: 'Anno',
+    loading: 'Caricamento dati...',
     months: [
       'Gennaio',
       'Febbraio',
-      'Março',
+      'Marzo',
       'Aprile',
       'Maggio',
       'Giugno',
@@ -131,7 +135,7 @@ const translations = {
 export default function Home() {
   const router = useRouter();
   const { language, setLanguage, theme, setTheme, mounted } = useAppContext();
-  const t = translations[language];
+  const t = translations[language] || translations.it;
 
   const monthScrollRef = useRef(null);
   const categoryScrollRef = useRef(null);
@@ -145,6 +149,9 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedNature, setSelectedNature] = useState('all');
 
+  // LOADING
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
+
   const now = new Date();
   const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
@@ -155,9 +162,9 @@ export default function Home() {
     const years = [];
     for (let y = startYear; y <= endYear; y++) years.push(y);
     return years;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [now]);
 
+  // Drag Scroll Logic
   const setupDragScroll = (ref) => {
     const element = ref.current;
     if (!element) return;
@@ -222,20 +229,26 @@ export default function Home() {
       router.push('/login');
       return;
     }
+
+    setIsLoadingTransactions(true); // Inicia o loading ao trocar filtros ou carregar
     try {
       const res = await fetch(
         `${API_URL}/transactions/${familyId}?month=${currentMonth}&year=${currentYear}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      if (res.ok) setTransactions(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(data);
+      }
     } catch (error) {
       console.error('Erro:', error);
+    } finally {
+      setIsLoadingTransactions(false); // Para o loading
     }
   };
 
   useEffect(() => {
     if (mounted) loadTransactions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth, currentYear, mounted]);
 
   const filteredTransactions = useMemo(() => {
@@ -340,6 +353,7 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Sticky Filter Bar */}
       <div className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-30 shadow-sm transition-colors">
         <div className="max-w-lg mx-auto p-4 space-y-3">
           <div
@@ -380,243 +394,259 @@ export default function Home() {
       </div>
 
       <main className="p-4 max-w-lg mx-auto space-y-6 mt-2">
-        <section className="space-y-3 pt-2">
-          <div className="flex items-center gap-2 px-2 text-gray-400 uppercase tracking-widest text-[10px] font-black">
-            <Filter size={14} /> <span>{t.filterCategory}</span>
+        {/* Loading ou Conteúdo */}
+        {isLoadingTransactions ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <Loading />
+            <p className="mt-4 text-sm text-gray-400 animate-pulse">
+              {t.loading}
+            </p>
           </div>
-          <div
-            ref={categoryScrollRef}
-            className="flex gap-2 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-1 cursor-grab select-none active:cursor-grabbing"
-          >
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${selectedCategory === 'all' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
-            >
-              {t.all}
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <div className="flex items-center gap-2 px-2 text-gray-400 uppercase tracking-widest text-[10px] font-black">
-            <Filter size={14} /> <span>{t.filterNature}</span>
-          </div>
-          <div className="flex gap-2 px-1">
-            {[
-              { id: 'all', label: t.natureAll },
-              { id: 'fixed', label: t.natureFixed },
-              { id: 'installments', label: t.natureInstallments },
-            ].map((nature) => (
-              <button
-                key={nature.id}
-                onClick={() => setSelectedNature(nature.id)}
-                className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all border ${selectedNature === nature.id ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
-              >
-                {nature.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <div className="space-y-4">
-          {Object.entries(totalsByCurrency).length === 0 ? (
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-4xl border border-dashed dark:border-slate-800 flex flex-col items-center gap-2 text-center text-gray-400">
-              <Wallet size={32} />{' '}
-              <p className="font-medium text-sm">{t.noTransactions}</p>
-            </div>
-          ) : (
-            Object.entries(totalsByCurrency).map(([code, data]) => (
-              <div
-                key={code}
-                className="bg-blue-600 dark:bg-blue-700 p-6 rounded-4xl text-white shadow-xl"
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2 opacity-80 text-sm font-medium">
-                    <Wallet size={18} /> {t.balanceIn} {code}
-                  </div>
-                  <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black">
-                    {code}
-                  </span>
-                </div>
-
-                {/* Saldo Atual */}
-                <h2
-                  className={`text-4xl font-black mb-1 transition-colors ${data.balance < 0 ? 'text-red-400' : 'text-white'}`}
-                >
-                  {data.symbol}{' '}
-                  {data.balance.toLocaleString(
-                    language === 'en' ? 'en-US' : 'pt-BR',
-                    { minimumFractionDigits: 2 },
-                  )}
-                </h2>
-
-                {/* Saldo Projetado */}
-                <div
-                  className={`flex items-center gap-2 mb-6 border-t border-white/10 pt-1 w-fit transition-all ${data.projected < 0 ? 'animate-pulse' : 'opacity-90'}`}
-                >
-                  <p className="text-[9px] uppercase font-bold tracking-wider">
-                    {t.projectedBalance}:
-                  </p>
-                  <p
-                    className={`font-black text-sm ${data.projected < 0 ? 'text-red-400 font-black' : 'text-white'}`}
-                  >
-                    {data.symbol}{' '}
-                    {data.projected.toLocaleString(
-                      language === 'en' ? 'en-US' : 'pt-BR',
-                      { minimumFractionDigits: 2 },
-                    )}
-                  </p>
-                </div>
-
-                {/* Totalizador de entradas, saídas e saídas previstas */}
-                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/10 text-center">
-                  <div>
-                    <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
-                      {t.income}
-                    </p>
-                    <p className="font-black text-sm text-green-400">
-                      {data.symbol}{' '}
-                      {data.income.toLocaleString(
-                        language === 'en' ? 'en-US' : 'pt-BR',
-                        { minimumFractionDigits: 2 },
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
-                      {t.expense}
-                    </p>
-                    <p className="font-black text-sm text-red-400">
-                      {data.symbol}{' '}
-                      {data.expense.toLocaleString(
-                        language === 'en' ? 'en-US' : 'pt-BR',
-                        { minimumFractionDigits: 2 },
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
-                      {t.pendingSummary}
-                    </p>
-                    <p className="font-black text-sm text-amber-400">
-                      {data.symbol}{' '}
-                      {data.pending.toLocaleString(
-                        language === 'en' ? 'en-US' : 'pt-BR',
-                        { minimumFractionDigits: 2 },
-                      )}
-                    </p>
-                  </div>
-                </div>
+        ) : (
+          <>
+            {/* Filtros de Categoria */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2 px-2 text-gray-400 uppercase tracking-widest text-[10px] font-black">
+                <Filter size={14} /> <span>{t.filterCategory}</span>
               </div>
-            ))
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="font-bold text-lg px-2">
-            {t.listTitle} {t.months[currentMonth - 1]} {currentYear}
-          </h3>
-          {filteredTransactions.map((trans) => {
-            const installmentMatch = trans.description.match(/\((\d+\/\d+)\)$/);
-            const installmentText = installmentMatch
-              ? installmentMatch[1]
-              : null;
-            const cleanDescription = installmentText
-              ? trans.description.replace(/\s\(\d+\/\d+\)$/, '')
-              : trans.description;
-            return (
               <div
-                key={trans.id}
-                onClick={() => {
-                  setEditingTransaction(trans);
-                  setIsModalOpen(true);
-                }}
-                className={`bg-white dark:bg-slate-900 p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-100 dark:border-slate-800 active:scale-[0.98] transition-all cursor-pointer ${trans.is_paid ? 'opacity-60' : 'opacity-100'}`}
+                ref={categoryScrollRef}
+                className="flex gap-2 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-1 cursor-grab select-none"
               >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`p-3 rounded-xl ${trans.type === 'INCOME' ? 'bg-green-50 dark:bg-green-900/30 text-green-600' : 'bg-red-50 dark:bg-red-900/30 text-red-600'}`}
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${selectedCategory === 'all' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
+                >
+                  {t.all}
+                </button>
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
                   >
-                    {trans.type === 'INCOME' ? (
-                      <TrendingUp size={20} />
-                    ) : (
-                      <TrendingDown size={20} />
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="font-bold text-sm truncate max-w-37.5">
-                        {cleanDescription}
-                      </p>
-                      {installmentText && (
-                        <span className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px] font-black px-1.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-800">
-                          {installmentText}
-                        </span>
-                      )}
-                      {!installmentText && (
-                        <Repeat
-                          size={12}
-                          className="text-gray-400 opacity-60"
-                        />
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-gray-500 uppercase w-fit">
-                          {trans.categories?.name || '---'}
-                        </span>
-                        <span
-                          className={`flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded uppercase border ${trans.is_paid ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}
-                        >
-                          {trans.is_paid ? (
-                            <CheckCircle2 size={10} />
-                          ) : (
-                            <Clock size={10} />
-                          )}{' '}
-                          {trans.is_paid ? t.paid : t.pending}
-                        </span>
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Filtros de Natureza */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2 px-2 text-gray-400 uppercase tracking-widest text-[10px] font-black">
+                <Filter size={14} /> <span>{t.filterNature}</span>
+              </div>
+              <div className="flex gap-2 px-1">
+                {[
+                  { id: 'all', label: t.natureAll },
+                  { id: 'fixed', label: t.natureFixed },
+                  { id: 'installments', label: t.natureInstallments },
+                ].map((nature) => (
+                  <button
+                    key={nature.id}
+                    onClick={() => setSelectedNature(nature.id)}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all border ${selectedNature === nature.id ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
+                  >
+                    {nature.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Cards de Totais */}
+            <div className="space-y-4">
+              {Object.entries(totalsByCurrency).length === 0 ? (
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-4xl border border-dashed dark:border-slate-800 flex flex-col items-center gap-2 text-center text-gray-400">
+                  <Wallet size={32} />
+                  <p className="font-medium text-sm">{t.noTransactions}</p>
+                </div>
+              ) : (
+                Object.entries(totalsByCurrency).map(([code, data]) => (
+                  <div
+                    key={code}
+                    className="bg-blue-600 dark:bg-blue-700 p-6 rounded-4xl text-white shadow-xl transition-all"
+                  >
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2 opacity-80 text-sm font-medium">
+                        <Wallet size={18} /> {t.balanceIn} {code}
                       </div>
-                      <span className="text-[10px] text-gray-400 font-medium px-1 flex items-center gap-1">
-                        <span className="font-bold opacity-70">
-                          {t.dateLabel}
-                        </span>
-                        {new Date(trans.date).toLocaleDateString(
-                          language === 'en' ? 'en-US' : 'pt-BR',
-                        )}
+                      <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black">
+                        {code}
                       </span>
                     </div>
+
+                    <h2
+                      className={`text-4xl font-black mb-1 transition-colors ${data.balance < 0 ? 'text-red-400' : 'text-white'}`}
+                    >
+                      {data.symbol}{' '}
+                      {data.balance.toLocaleString(
+                        language === 'en' ? 'en-US' : 'pt-BR',
+                        { minimumFractionDigits: 2 },
+                      )}
+                    </h2>
+
+                    <div
+                      className={`flex items-center gap-2 mb-6 border-t border-white/10 pt-1 w-fit ${data.projected < 0 ? 'animate-pulse' : 'opacity-90'}`}
+                    >
+                      <p className="text-[9px] uppercase font-bold tracking-wider">
+                        {t.projectedBalance}:
+                      </p>
+                      <p
+                        className={`font-black text-sm ${data.projected < 0 ? 'text-red-400' : 'text-white'}`}
+                      >
+                        {data.symbol}{' '}
+                        {data.projected.toLocaleString(
+                          language === 'en' ? 'en-US' : 'pt-BR',
+                          { minimumFractionDigits: 2 },
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/10 text-center">
+                      <div>
+                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
+                          {t.income}
+                        </p>
+                        <p className="font-black text-sm text-green-400">
+                          {data.symbol}{' '}
+                          {data.income.toLocaleString(
+                            language === 'en' ? 'en-US' : 'pt-BR',
+                            { minimumFractionDigits: 2 },
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
+                          {t.expense}
+                        </p>
+                        <p className="font-black text-sm text-red-400">
+                          {data.symbol}{' '}
+                          {data.expense.toLocaleString(
+                            language === 'en' ? 'en-US' : 'pt-BR',
+                            { minimumFractionDigits: 2 },
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
+                          {t.pendingSummary}
+                        </p>
+                        <p className="font-black text-sm text-amber-400">
+                          {data.symbol}{' '}
+                          {data.pending.toLocaleString(
+                            language === 'en' ? 'en-US' : 'pt-BR',
+                            { minimumFractionDigits: 2 },
+                          )}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p
-                    className={`font-bold ${trans.type === 'INCOME' ? 'text-green-600 dark:text-green-400' : trans.is_paid ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`}
+                ))
+              )}
+            </div>
+
+            {/* Listagem de Transações */}
+            <div className="space-y-4">
+              <h3 className="font-bold text-lg px-2">
+                {t.listTitle} {t.months[currentMonth - 1]} {currentYear}
+              </h3>
+              {filteredTransactions.map((trans) => {
+                const installmentMatch =
+                  trans.description.match(/\((\d+\/\d+)\)$/);
+                const installmentText = installmentMatch
+                  ? installmentMatch[1]
+                  : null;
+                const cleanDescription = installmentText
+                  ? trans.description.replace(/\s\(\d+\/\d+\)$/, '')
+                  : trans.description;
+
+                return (
+                  <div
+                    key={trans.id}
+                    onClick={() => {
+                      setEditingTransaction(trans);
+                      setIsModalOpen(true);
+                    }}
+                    className={`bg-white dark:bg-slate-900 p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-100 dark:border-slate-800 active:scale-[0.98] transition-all cursor-pointer ${trans.is_paid ? 'opacity-60' : 'opacity-100'}`}
                   >
-                    {trans.type === 'INCOME' ? '+' : '-'}{' '}
-                    {trans.currency?.symbol}{' '}
-                    {Number(trans.amount).toLocaleString(
-                      language === 'en' ? 'en-US' : 'pt-BR',
-                      { minimumFractionDigits: 2 },
-                    )}
-                  </p>
-                  <p className="text-[10px] font-black text-gray-400 uppercase">
-                    {trans.currency?.code}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`p-3 rounded-xl ${trans.type === 'INCOME' ? 'bg-green-50 dark:bg-green-900/30 text-green-600' : 'bg-red-50 dark:bg-red-900/30 text-red-600'}`}
+                      >
+                        {trans.type === 'INCOME' ? (
+                          <TrendingUp size={20} />
+                        ) : (
+                          <TrendingDown size={20} />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="font-bold text-sm truncate max-w-37.5">
+                            {cleanDescription}
+                          </p>
+                          {installmentText && (
+                            <span className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px] font-black px-1.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-800">
+                              {installmentText}
+                            </span>
+                          )}
+                          {!installmentText && (
+                            <Repeat
+                              size={12}
+                              className="text-gray-400 opacity-60"
+                            />
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-gray-500 uppercase w-fit">
+                              {trans.categories?.name || '---'}
+                            </span>
+                            <span
+                              className={`flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded uppercase border ${trans.is_paid ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}
+                            >
+                              {trans.is_paid ? (
+                                <CheckCircle2 size={10} />
+                              ) : (
+                                <Clock size={10} />
+                              )}{' '}
+                              {trans.is_paid ? t.paid : t.pending}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-gray-400 font-medium px-1 flex items-center gap-1">
+                            <span className="font-bold opacity-70">
+                              {t.dateLabel}
+                            </span>
+                            {new Date(trans.date).toLocaleDateString(
+                              language === 'en' ? 'en-US' : 'pt-BR',
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p
+                        className={`font-bold ${trans.type === 'INCOME' ? 'text-green-600 dark:text-green-400' : trans.is_paid ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`}
+                      >
+                        {trans.type === 'INCOME' ? '+' : '-'}{' '}
+                        {trans.currency?.symbol}{' '}
+                        {Number(trans.amount).toLocaleString(
+                          language === 'en' ? 'en-US' : 'pt-BR',
+                          { minimumFractionDigits: 2 },
+                        )}
+                      </p>
+                      <p className="text-[10px] font-black text-gray-400 uppercase">
+                        {trans.currency?.code}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </main>
 
+      {/* Floating Add Button */}
       <button
         onClick={() => {
           setEditingTransaction(null);
@@ -626,6 +656,7 @@ export default function Home() {
       >
         <Plus size={28} />
       </button>
+
       {isModalOpen && (
         <TransactionForm
           initialData={editingTransaction}
