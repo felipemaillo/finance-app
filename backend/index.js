@@ -251,7 +251,7 @@ app.get('/categories', async (req, res) => {
 // Buscar todas as famílias
 app.get('/families', async (req, res) => {
   try {
-    const families = await prisma.family.findMany();
+    const families = await prisma.families.findMany();
     res.json(families);
   } catch (error) {
     // Isso vai cuspir o erro real no log do Render e na tela do navegador
