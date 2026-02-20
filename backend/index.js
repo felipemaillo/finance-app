@@ -19,6 +19,19 @@ const JWT_SECRET = process.env.JWT_SECRET;
 app.use(cors());
 app.use(express.json());
 
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ error: 'Token ausente.' });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Token inválido.' });
+    req.user = user;
+    next();
+  });
+};
+
 // --- ROTAS DE TESTE ---
 
 app.get('/health', (req, res) => {
@@ -32,8 +45,21 @@ app.get('/health', (req, res) => {
 // --- ROTAS DE AUTENTICAÇÃO ---
 
 app.post('/auth/register', async (req, res) => {
-  const { name, email, password, family_id } = req.body;
+  const { name, email, password, family_id, family_password } = req.body;
   try {
+    const family = await prisma.families.findUnique({
+      where: { id: family_id },
+    });
+    if (!family)
+      return res.status(404).json({ error: 'Família não encontrada.' });
+
+    const isFamilyPassCorrect = await bcrypt.compare(
+      family_password,
+      family.password_hash,
+    );
+    if (!isFamilyPassCorrect)
+      return res.status(401).json({ error: 'Senha da família incorreta.' });
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.users.create({
       data: {
@@ -41,6 +67,7 @@ app.post('/auth/register', async (req, res) => {
         email,
         password_hash: hashedPassword,
         family_id: family_id,
+        is_super_user: false,
       },
     });
     res
@@ -62,13 +89,23 @@ app.post('/auth/login', async (req, res) => {
     const user = await prisma.users.findUnique({ where: { email } });
     if (user && (await bcrypt.compare(password, user.password_hash))) {
       const token = jwt.sign(
-        { userId: user.id, familyId: user.family_id, userName: user.name },
+        {
+          userId: user.id,
+          familyId: user.family_id,
+          userName: user.name,
+          isSuperUser: user.is_super_user,
+        },
         JWT_SECRET,
         { expiresIn: '30d' },
       );
       res.json({
         token,
-        user: { id: user.id, name: user.name, familyId: user.family_id },
+        user: {
+          id: user.id,
+          name: user.name,
+          familyId: user.family_id,
+          isSuperUser: user.is_super_user,
+        },
       });
     } else {
       res.status(401).json({ error: 'E-mail ou senha incorretos.' });
@@ -81,7 +118,7 @@ app.post('/auth/login', async (req, res) => {
 // --- ROTAS DE TRANSAÇÕES ---
 
 // Alterar uma transação
-app.put('/transactions/:id', async (req, res) => {
+app.put('/transactions/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { description, amount, type, date, category_id, currency_id, is_paid } =
     req.body;
@@ -113,7 +150,7 @@ app.put('/transactions/:id', async (req, res) => {
 });
 
 // Excluir uma transação
-app.delete('/transactions/:id', async (req, res) => {
+app.delete('/transactions/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.transactions.delete({
@@ -131,7 +168,7 @@ app.delete('/transactions/:id', async (req, res) => {
 });
 
 // Criar uma nova transação
-app.post('/transactions', async (req, res) => {
+app.post('/transactions', authenticateToken, async (req, res) => {
   const {
     description,
     amount,
@@ -174,7 +211,7 @@ app.post('/transactions', async (req, res) => {
 });
 
 // Buscar todas as transações de uma família
-app.get('/transactions/:familyId', async (req, res) => {
+app.get('/transactions/:familyId', authenticateToken, async (req, res) => {
   const { familyId } = req.params;
   const { month, year } = req.query;
 
@@ -209,7 +246,7 @@ app.get('/transactions/:familyId', async (req, res) => {
 });
 
 // Alterar uma categoria
-app.put('/categories/:id', async (req, res) => {
+app.put('/categories/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { name } = req.body;
   try {
@@ -229,7 +266,7 @@ app.put('/categories/:id', async (req, res) => {
 });
 
 // Excluir uma categoria
-app.delete('/categories/:id', async (req, res) => {
+app.delete('/categories/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.categories.delete({
@@ -248,7 +285,7 @@ app.delete('/categories/:id', async (req, res) => {
 });
 
 // Criar uma nova categoria
-app.post('/categories', async (req, res) => {
+app.post('/categories', authenticateToken, async (req, res) => {
   const { name } = req.body;
   try {
     const newCategory = await prisma.categories.create({
@@ -285,7 +322,9 @@ app.get('/categories', async (req, res) => {
 // Buscar todas as famílias
 app.get('/families', async (req, res) => {
   try {
-    const families = await prisma.families.findMany();
+    const families = await prisma.families.findMany({
+      select: { id: true, name: true },
+    });
     res.json(families);
   } catch (error) {
     console.error('ERRO DETALHADO:', error);
@@ -294,6 +333,25 @@ app.get('/families', async (req, res) => {
       details: error.message,
       code: error.code,
     });
+  }
+});
+
+app.post('/families', authenticateToken, async (req, res) => {
+  const { name, password_hash } = req.body;
+  try {
+    const user = await prisma.users.findUnique({
+      where: { id: req.user.userId },
+    });
+    if (!user || !user.is_super_user)
+      return res.status(403).json({ error: 'Acesso negado.' });
+
+    const hashedFamilyPass = await bcrypt.hash(password_hash, 10);
+    const newFamily = await prisma.families.create({
+      data: { name, password_hash: hashedFamilyPass },
+    });
+    res.status(201).json(newFamily);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao criar família.' });
   }
 });
 

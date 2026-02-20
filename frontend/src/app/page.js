@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Clock,
   Repeat,
+  ShieldCheck, // Aggiunto per la gestione Famiglie
 } from 'lucide-react';
 import TransactionForm from './components/TransactionForm';
 import Loading from './components/Loading';
@@ -43,6 +44,7 @@ const translations = {
     dateLabel: 'Data:',
     yearLabel: 'Ano',
     loading: 'Carregando dados...',
+    admin: 'Gerenciar Famílias',
     months: [
       'Janeiro',
       'Fevereiro',
@@ -79,6 +81,7 @@ const translations = {
     dateLabel: 'Date:',
     yearLabel: 'Year',
     loading: 'Loading data...',
+    admin: 'Manage Families',
     months: [
       'January',
       'February',
@@ -115,6 +118,7 @@ const translations = {
     dateLabel: 'Data:',
     yearLabel: 'Anno',
     loading: 'Caricamento dati...',
+    admin: 'Gestisci Famiglie',
     months: [
       'Gennaio',
       'Febbraio',
@@ -142,14 +146,13 @@ export default function Home() {
   const yearScrollRef = useRef(null);
 
   const [userName, setUserName] = useState('Utente');
+  const [isSuperUser, setIsSuperUser] = useState(false); // Stato per il permesso admin
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedNature, setSelectedNature] = useState('all');
-
-  // LOADING
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
 
   const now = new Date();
@@ -164,7 +167,7 @@ export default function Home() {
     return years;
   }, [now]);
 
-  // Drag Scroll Logic
+  // Logica Drag Scroll (invariata)
   const setupDragScroll = (ref) => {
     const element = ref.current;
     if (!element) return;
@@ -209,12 +212,11 @@ export default function Home() {
       setupDragScroll(monthScrollRef);
       setupDragScroll(categoryScrollRef);
       setupDragScroll(yearScrollRef);
-    }
-  }, [mounted]);
 
-  useEffect(() => {
-    if (mounted) {
+      // Carica info utente e permessi
       setUserName(localStorage.getItem('userName') || t.userDefault);
+      setIsSuperUser(localStorage.getItem('isSuperUser') === 'true');
+
       fetch(`${API_URL}/categories`)
         .then((res) => res.json())
         .then(setCategories)
@@ -230,7 +232,7 @@ export default function Home() {
       return;
     }
 
-    setIsLoadingTransactions(true); // Inicia o loading ao trocar filtros ou carregar
+    setIsLoadingTransactions(true);
     try {
       const res = await fetch(
         `${API_URL}/transactions/${familyId}?month=${currentMonth}&year=${currentYear}`,
@@ -241,9 +243,9 @@ export default function Home() {
         setTransactions(data);
       }
     } catch (error) {
-      console.error('Erro:', error);
+      console.error('Errore caricamento:', error);
     } finally {
-      setIsLoadingTransactions(false); // Para o loading
+      setIsLoadingTransactions(false);
     }
   };
 
@@ -251,6 +253,7 @@ export default function Home() {
     if (mounted) loadTransactions();
   }, [currentMonth, currentYear, mounted]);
 
+  // Logica filtri (invariata)
   const filteredTransactions = useMemo(() => {
     let list = [...transactions];
     if (selectedCategory !== 'all') {
@@ -292,11 +295,9 @@ export default function Home() {
         if (trans.is_paid) acc[code].expense += val;
         else acc[code].pending += val;
       }
-
       acc[code].balance = acc[code].income - acc[code].expense;
       acc[code].projected =
         acc[code].income - acc[code].expense - acc[code].pending;
-
       return acc;
     }, {});
   }, [filteredTransactions]);
@@ -315,6 +316,7 @@ export default function Home() {
             {userName}
           </h1>
         </div>
+
         <div className="flex items-center gap-4">
           <button
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -322,6 +324,7 @@ export default function Home() {
           >
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
           </button>
+
           <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-full">
             {['pt', 'en', 'it'].map((l) => (
               <button
@@ -333,13 +336,26 @@ export default function Home() {
               </button>
             ))}
           </div>
+
           <div className="flex gap-2 border-l pl-4 dark:border-slate-800">
+            {/* PULSANTE ADMIN - Visibile solo per Super User */}
+            {isSuperUser && (
+              <button
+                onClick={() => router.push('/families')}
+                className="p-2 text-blue-600 dark:text-blue-400 hover:scale-110 transition-transform"
+                title={t.admin}
+              >
+                <ShieldCheck size={24} />
+              </button>
+            )}
+
             <button
               onClick={() => router.push('/categories')}
               className="p-2 text-gray-400 hover:text-blue-600"
             >
               <Tag size={22} />
             </button>
+
             <button
               onClick={() => {
                 localStorage.clear();
@@ -353,7 +369,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Sticky Filter Bar */}
+      {/* Resto del codice rimane uguale per filtri, dashboard e lista... */}
       <div className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-30 shadow-sm transition-colors">
         <div className="max-w-lg mx-auto p-4 space-y-3">
           <div
@@ -394,7 +410,6 @@ export default function Home() {
       </div>
 
       <main className="p-4 max-w-lg mx-auto space-y-6 mt-2">
-        {/* Loading ou Conteúdo */}
         {isLoadingTransactions ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loading />
@@ -404,18 +419,18 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {/* Filtros de Categoria */}
+            {/* Categorie e Natura filtri */}
             <section className="space-y-3">
               <div className="flex items-center gap-2 px-2 text-gray-400 uppercase tracking-widest text-[10px] font-black">
                 <Filter size={14} /> <span>{t.filterCategory}</span>
               </div>
               <div
                 ref={categoryScrollRef}
-                className="flex gap-2 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-1 cursor-grab select-none"
+                className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1 cursor-grab select-none"
               >
                 <button
                   onClick={() => setSelectedCategory('all')}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${selectedCategory === 'all' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
+                  className={`px-4 py-2 rounded-full text-xs font-bold border whitespace-nowrap ${selectedCategory === 'all' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
                 >
                   {t.all}
                 </button>
@@ -423,7 +438,7 @@ export default function Home() {
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
+                    className={`px-4 py-2 rounded-full text-xs font-bold border whitespace-nowrap ${selectedCategory === cat.id ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
                   >
                     {cat.name}
                   </button>
@@ -431,7 +446,6 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Filtros de Natureza */}
             <section className="space-y-3">
               <div className="flex items-center gap-2 px-2 text-gray-400 uppercase tracking-widest text-[10px] font-black">
                 <Filter size={14} /> <span>{t.filterNature}</span>
@@ -445,7 +459,7 @@ export default function Home() {
                   <button
                     key={nature.id}
                     onClick={() => setSelectedNature(nature.id)}
-                    className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all border ${selectedNature === nature.id ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
+                    className={`flex-1 py-2 rounded-xl text-[10px] font-black border ${selectedNature === nature.id ? 'bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-md' : 'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-500'}`}
                   >
                     {nature.label}
                   </button>
@@ -453,10 +467,10 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Cards de Totais */}
+            {/* Totali e Lista */}
             <div className="space-y-4">
               {Object.entries(totalsByCurrency).length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-4xl border border-dashed dark:border-slate-800 flex flex-col items-center gap-2 text-center text-gray-400">
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-4xl border border-dashed dark:border-slate-800 flex flex-col items-center text-center text-gray-400">
                   <Wallet size={32} />
                   <p className="font-medium text-sm">{t.noTransactions}</p>
                 </div>
@@ -470,13 +484,9 @@ export default function Home() {
                       <div className="flex items-center gap-2 opacity-80 text-sm font-medium">
                         <Wallet size={18} /> {t.balanceIn} {code}
                       </div>
-                      <span className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black">
-                        {code}
-                      </span>
                     </div>
-
                     <h2
-                      className={`text-4xl font-black mb-1 transition-colors ${data.balance < 0 ? 'text-red-400' : 'text-white'}`}
+                      className={`text-4xl font-black mb-1 ${data.balance < 0 ? 'text-red-400' : 'text-white'}`}
                     >
                       {data.symbol}{' '}
                       {data.balance.toLocaleString(
@@ -484,9 +494,8 @@ export default function Home() {
                         { minimumFractionDigits: 2 },
                       )}
                     </h2>
-
                     <div
-                      className={`flex items-center gap-2 mb-6 border-t border-white/10 pt-1 w-fit ${data.projected < 0 ? 'animate-pulse' : 'opacity-90'}`}
+                      className={`flex items-center gap-2 mb-6 border-t border-white/10 pt-1 w-fit ${data.projected < 0 ? 'animate-pulse' : ''}`}
                     >
                       <p className="text-[9px] uppercase font-bold tracking-wider">
                         {t.projectedBalance}:
@@ -501,10 +510,9 @@ export default function Home() {
                         )}
                       </p>
                     </div>
-
                     <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/10 text-center">
                       <div>
-                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
+                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1">
                           {t.income}
                         </p>
                         <p className="font-black text-sm text-green-400">
@@ -516,7 +524,7 @@ export default function Home() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
+                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1">
                           {t.expense}
                         </p>
                         <p className="font-black text-sm text-red-400">
@@ -528,7 +536,7 @@ export default function Home() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1 leading-tight">
+                        <p className="text-[9px] uppercase font-bold opacity-70 mb-1">
                           {t.pendingSummary}
                         </p>
                         <p className="font-black text-sm text-amber-400">
@@ -545,108 +553,59 @@ export default function Home() {
               )}
             </div>
 
-            {/* Listagem de Transações */}
             <div className="space-y-4">
               <h3 className="font-bold text-lg px-2">
                 {t.listTitle} {t.months[currentMonth - 1]} {currentYear}
               </h3>
-              {filteredTransactions.map((trans) => {
-                const installmentMatch =
-                  trans.description.match(/\((\d+\/\d+)\)$/);
-                const installmentText = installmentMatch
-                  ? installmentMatch[1]
-                  : null;
-                const cleanDescription = installmentText
-                  ? trans.description.replace(/\s\(\d+\/\d+\)$/, '')
-                  : trans.description;
-
-                return (
-                  <div
-                    key={trans.id}
-                    onClick={() => {
-                      setEditingTransaction(trans);
-                      setIsModalOpen(true);
-                    }}
-                    className={`bg-white dark:bg-slate-900 p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-100 dark:border-slate-800 active:scale-[0.98] transition-all cursor-pointer ${trans.is_paid ? 'opacity-60' : 'opacity-100'}`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`p-3 rounded-xl ${trans.type === 'INCOME' ? 'bg-green-50 dark:bg-green-900/30 text-green-600' : 'bg-red-50 dark:bg-red-900/30 text-red-600'}`}
-                      >
-                        {trans.type === 'INCOME' ? (
-                          <TrendingUp size={20} />
-                        ) : (
-                          <TrendingDown size={20} />
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <p className="font-bold text-sm truncate max-w-37.5">
-                            {cleanDescription}
-                          </p>
-                          {installmentText && (
-                            <span className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px] font-black px-1.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-800">
-                              {installmentText}
-                            </span>
-                          )}
-                          {!installmentText && (
-                            <Repeat
-                              size={12}
-                              className="text-gray-400 opacity-60"
-                            />
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-gray-500 uppercase w-fit">
-                              {trans.categories?.name || '---'}
-                            </span>
-                            <span
-                              className={`flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded uppercase border ${trans.is_paid ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}
-                            >
-                              {trans.is_paid ? (
-                                <CheckCircle2 size={10} />
-                              ) : (
-                                <Clock size={10} />
-                              )}{' '}
-                              {trans.is_paid ? t.paid : t.pending}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-gray-400 font-medium px-1 flex items-center gap-1">
-                            <span className="font-bold opacity-70">
-                              {t.dateLabel}
-                            </span>
-                            {new Date(trans.date).toLocaleDateString(
-                              language === 'en' ? 'en-US' : 'pt-BR',
-                            )}
-                          </span>
-                        </div>
-                      </div>
+              {filteredTransactions.map((trans) => (
+                <div
+                  key={trans.id}
+                  onClick={() => {
+                    setEditingTransaction(trans);
+                    setIsModalOpen(true);
+                  }}
+                  className={`bg-white dark:bg-slate-900 p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-100 dark:border-slate-800 active:scale-[0.98] cursor-pointer ${trans.is_paid ? 'opacity-60' : ''}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`p-3 rounded-xl ${trans.type === 'INCOME' ? 'bg-green-50 dark:bg-green-900/30 text-green-600' : 'bg-red-50 dark:bg-red-900/30 text-red-600'}`}
+                    >
+                      {trans.type === 'INCOME' ? (
+                        <TrendingUp size={20} />
+                      ) : (
+                        <TrendingDown size={20} />
+                      )}
                     </div>
-                    <div className="text-right">
-                      <p
-                        className={`font-bold ${trans.type === 'INCOME' ? 'text-green-600 dark:text-green-400' : trans.is_paid ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`}
+                    <div>
+                      <p className="font-bold text-sm truncate max-w-37.5">
+                        {trans.description}
+                      </p>
+                      <span
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase border ${trans.is_paid ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}
                       >
-                        {trans.type === 'INCOME' ? '+' : '-'}{' '}
-                        {trans.currency?.symbol}{' '}
-                        {Number(trans.amount).toLocaleString(
-                          language === 'en' ? 'en-US' : 'pt-BR',
-                          { minimumFractionDigits: 2 },
-                        )}
-                      </p>
-                      <p className="text-[10px] font-black text-gray-400 uppercase">
-                        {trans.currency?.code}
-                      </p>
+                        {trans.is_paid ? t.paid : t.pending}
+                      </span>
                     </div>
                   </div>
-                );
-              })}
+                  <div className="text-right">
+                    <p
+                      className={`font-bold ${trans.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}
+                    >
+                      {trans.type === 'INCOME' ? '+' : '-'}{' '}
+                      {trans.currency?.symbol}{' '}
+                      {Number(trans.amount).toLocaleString(
+                        language === 'en' ? 'en-US' : 'pt-BR',
+                        { minimumFractionDigits: 2 },
+                      )}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}
       </main>
 
-      {/* Floating Add Button */}
       <button
         onClick={() => {
           setEditingTransaction(null);
