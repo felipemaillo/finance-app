@@ -1,9 +1,17 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { X, Trash2, CheckCircle2, Circle, Repeat } from 'lucide-react';
+import {
+  X,
+  Trash2,
+  CheckCircle2,
+  Circle,
+  Repeat,
+  AlertCircle,
+} from 'lucide-react';
 import { API_URL } from '../lib/api';
 import { useAppContext } from '../context/AppContext';
 import Loading from './Loading';
+import { v4 as uuidv4 } from 'uuid';
 
 const translations = {
   pt: {
@@ -31,6 +39,11 @@ const translations = {
     saving: 'Salvando...',
     deleting: 'Excluindo...',
     loadingOptions: 'Carregando opções...',
+    syncTitle: 'Sincronizar Alterações?',
+    syncMessage:
+      'Este lançamento faz parte de um grupo. Deseja atualizar apenas este ou todos os próximos?',
+    syncOnlyThis: 'Apenas este',
+    syncAllFuture: 'Este e próximos',
   },
   en: {
     editTitle: 'Edit Transaction',
@@ -57,6 +70,11 @@ const translations = {
     saving: 'Saving...',
     deleting: 'Deleting...',
     loadingOptions: 'Loading...',
+    syncTitle: 'Sync Changes?',
+    syncMessage:
+      'This is part of a group. Update only this one or all future ones?',
+    syncOnlyThis: 'Only this one',
+    syncAllFuture: 'This and future',
   },
   it: {
     editTitle: 'Modifica Transazione',
@@ -83,6 +101,11 @@ const translations = {
     saving: 'Salvataggio in corso...',
     deleting: 'Eliminazione...',
     loadingOptions: 'Caricamento opzioni...',
+    syncTitle: 'Sincronizzare?',
+    syncMessage:
+      'Fa parte di un gruppo. Aggiornare solo questo o tutti i futuri?',
+    syncOnlyThis: 'Solo questo',
+    syncAllFuture: 'Questo e futuri',
   },
 };
 
@@ -94,8 +117,8 @@ export default function TransactionForm({ onClose, initialData }) {
   const [categories, setCategories] = useState([]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [numInstallments, setNumInstallments] = useState(1);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
-  // Carregamento
   const [isOptionsLoading, setIsOptionsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -149,17 +172,25 @@ export default function TransactionForm({ onClose, initialData }) {
     loadOptions();
   }, [initialData, mounted]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  const handleSubmit = async (e, updateFuture = false) => {
+    if (e) e.preventDefault();
 
+    if (initialData?.group_id && !showSyncModal && !updateFuture) {
+      setShowSyncModal(true);
+      return;
+    }
+
+    setIsSubmitting(true);
     const family_id = localStorage.getItem('familyId');
     const user_id = localStorage.getItem('userId');
+    const token = localStorage.getItem('userToken');
 
     let iterations = 1;
-    if (!initialData) {
-      if (isRecurring) iterations = 12;
-      else if (numInstallments > 1) iterations = numInstallments;
+    let groupId = initialData?.group_id || null;
+
+    if (!initialData && (isRecurring || numInstallments > 1)) {
+      groupId = uuidv4();
+      iterations = isRecurring ? 12 : numInstallments;
     }
 
     try {
@@ -168,7 +199,7 @@ export default function TransactionForm({ onClose, initialData }) {
         adjustedDate.setMonth(adjustedDate.getMonth() + i);
 
         const finalDescription =
-          numInstallments > 1 && !isRecurring
+          numInstallments > 1 && !isRecurring && !initialData
             ? `${formData.description} (${i + 1}/${numInstallments})`
             : formData.description;
 
@@ -184,6 +215,8 @@ export default function TransactionForm({ onClose, initialData }) {
           is_paid: i === 0 ? formData.is_paid : false,
           family_id,
           user_id,
+          group_id: groupId,
+          update_future: updateFuture,
         };
 
         const method = initialData ? 'PUT' : 'POST';
@@ -193,7 +226,10 @@ export default function TransactionForm({ onClose, initialData }) {
 
         const response = await fetch(url, {
           method,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify(payload),
         });
 
@@ -205,17 +241,20 @@ export default function TransactionForm({ onClose, initialData }) {
       alert(t.errorSave);
     } finally {
       setIsSubmitting(false);
+      setShowSyncModal(false);
     }
   };
 
   const handleDelete = async () => {
     if (confirm(t.confirmDelete)) {
       setIsDeleting(true);
+      const token = localStorage.getItem('userToken');
       try {
         const response = await fetch(
           `${API_URL}/transactions/${initialData.id}`,
           {
             method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
           },
         );
         if (response.ok) onClose();
@@ -232,7 +271,44 @@ export default function TransactionForm({ onClose, initialData }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-4 overflow-y-auto transition-all">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] md:rounded-[32px] p-6 shadow-2xl animate-in slide-in-from-bottom duration-300 border border-gray-100 dark:border-slate-800">
+      {/* MODAL DE SINCRONIZAÇÃO (SOBREPOSTO) */}
+      {showSyncModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4 bg-slate-900/40 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] shadow-2xl max-w-sm w-full border border-blue-100 dark:border-slate-800 text-center animate-in zoom-in duration-200">
+            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={32} />
+            </div>
+            <h3 className="text-xl font-black dark:text-white mb-2">
+              {t.syncTitle}
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">
+              {t.syncMessage}
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleSubmit(null, true)}
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all"
+              >
+                {t.syncAllFuture}
+              </button>
+              <button
+                onClick={() => handleSubmit(null, false)}
+                className="w-full py-4 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+              >
+                {t.syncOnlyThis}
+              </button>
+              <button
+                onClick={() => setShowSyncModal(false)}
+                className="w-full py-2 text-gray-400 text-xs font-medium hover:underline"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-t-[32px] md:rounded-[32px] p-6 shadow-2xl border border-gray-100 dark:border-slate-800">
         {isOptionsLoading ? (
           <div className="py-12 flex flex-col items-center justify-center">
             <Loading />
@@ -273,7 +349,7 @@ export default function TransactionForm({ onClose, initialData }) {
                 </button>
               </div>
 
-              {/* CONTROLES DE RECORRÊNCIA E PARCELAMENTO */}
+              {/* CONTROLES DE RECORRÊNCIA (Apenas novos) */}
               {!initialData && (
                 <div className="flex gap-4 items-end">
                   <div className="flex-1">
@@ -315,7 +391,7 @@ export default function TransactionForm({ onClose, initialData }) {
                           setNumInstallments(val);
                           if (val > 1) setIsRecurring(false);
                         }}
-                        className={`w-full bg-transparent px-2 outline-none font-bold text-sm text-center ${numInstallments > 1 && !isRecurring ? 'text-white' : 'dark:text-white text-gray-700'} ${isRecurring ? 'opacity-30' : 'opacity-100'}`}
+                        className={`w-full bg-transparent px-2 outline-none font-bold text-sm text-center ${numInstallments > 1 && !isRecurring ? 'text-white' : 'dark:text-white text-gray-700'}`}
                       />
                     </div>
                   </div>
@@ -447,7 +523,7 @@ export default function TransactionForm({ onClose, initialData }) {
                 <button
                   type="submit"
                   disabled={isSubmitting || isDeleting}
-                  className="w-full bg-blue-600 dark:bg-blue-500 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-600 dark:bg-blue-500 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-70"
                 >
                   {isSubmitting ? t.saving : initialData ? t.update : t.save}
                 </button>

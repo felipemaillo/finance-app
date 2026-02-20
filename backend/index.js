@@ -120,14 +120,38 @@ app.post('/auth/login', async (req, res) => {
 // Alterar uma transação
 app.put('/transactions/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { description, amount, type, date, category_id, currency_id, is_paid } =
-    req.body;
+  const {
+    description,
+    amount,
+    type,
+    date,
+    category_id,
+    currency_id,
+    is_paid,
+    update_future,
+  } = req.body;
 
   try {
+    const currentTx = await prisma.transactions.findUnique({ where: { id } });
+
+    if (update_future && currentTx.group_id) {
+      await prisma.transactions.updateMany({
+        where: {
+          group_id: currentTx.group_id,
+          date: { gte: currentTx.date },
+          family_id: currentTx.family_id,
+        },
+        data: {
+          description,
+          amount: parseFloat(amount),
+          category_id: category_id || null,
+          currency_id: currency_id,
+        },
+      });
+    }
+
     const updated = await prisma.transactions.update({
-      where: {
-        id: id,
-      },
+      where: { id },
       data: {
         description,
         amount: parseFloat(amount),
@@ -138,14 +162,10 @@ app.put('/transactions/:id', authenticateToken, async (req, res) => {
         currency_id: currency_id,
       },
     });
+
     res.json(updated);
   } catch (error) {
-    console.error('ERRO DETALHADO:', error);
-    res.status(500).json({
-      error: 'Erro ao atualizar a transação.',
-      details: error.message,
-      code: error.code,
-    });
+    res.status(500).json({ error: 'Erro ao atualizar transação.' });
   }
 });
 
@@ -179,6 +199,7 @@ app.post('/transactions', authenticateToken, async (req, res) => {
     user_id,
     category_id,
     is_paid,
+    group_id,
   } = req.body;
 
   if (!description || !amount || !family_id || !currency_id || !user_id) {
@@ -193,6 +214,7 @@ app.post('/transactions', authenticateToken, async (req, res) => {
         type,
         is_paid: is_paid ?? false,
         date: new Date(date),
+        group_id: group_id,
         families: { connect: { id: family_id } },
         users: { connect: { id: user_id } },
         currency: { connect: { id: currency_id } },
