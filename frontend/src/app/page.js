@@ -165,6 +165,20 @@ export default function Home() {
   const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
 
+  // Efeito para centralizar o mês selecionado no carrossel
+  useEffect(() => {
+    if (mounted && monthScrollRef.current) {
+      const activeMonth = monthScrollRef.current.children[currentMonth - 1];
+      if (activeMonth) {
+        activeMonth.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest',
+        });
+      }
+    }
+  }, [currentMonth, mounted]);
+
   // Setup de scroll e inicialização
   useEffect(() => {
     if (mounted) {
@@ -319,14 +333,16 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center min-w-0">
+            {' '}
+            {/* min-w-0 adicionado aqui para permitir scroll interno */}
             <Calendar
               size={18}
               className="text-blue-600 dark:text-blue-400 shrink-0 mr-3"
             />
             <div
               ref={monthScrollRef}
-              className="flex gap-2 overflow-x-auto no-scrollbar pb-1 cursor-grab select-none w-full"
+              className="flex gap-2 overflow-x-auto no-scrollbar pb-1 cursor-grab select-none flex-1" // flex-1 em vez de w-full
             >
               {t.months.map((m, i) => (
                 <button
