@@ -120,7 +120,7 @@ const translations = {
     natureInstallments: 'Rateali',
     userDefault: 'Utente',
     dateLabel: 'Data:',
-    yearLabel: 'Anno',
+    yearLabel: 'Ano',
     loading: 'Caricamento dati...',
     admin: 'Gestisci Famiglie',
     stats: 'Statistiche',
@@ -324,7 +324,6 @@ export default function Home() {
               size={18}
               className="text-blue-600 dark:text-blue-400 shrink-0 mr-3"
             />
-            {/* Container do Carrossel de Meses */}
             <div
               ref={monthScrollRef}
               className="flex gap-2 overflow-x-auto no-scrollbar pb-1 cursor-grab select-none w-full"
@@ -393,7 +392,7 @@ export default function Home() {
                           {t.income}
                         </p>
                         <p className="font-bold text-sm text-green-300">
-                          +
+                          + {data.symbol}{' '}
                           {data.income.toLocaleString(
                             language === 'en'
                               ? 'en-US'
@@ -409,7 +408,7 @@ export default function Home() {
                           {t.expense}
                         </p>
                         <p className="font-bold text-sm text-red-300">
-                          -
+                          - {data.symbol}{' '}
                           {data.expense.toLocaleString(
                             language === 'en'
                               ? 'en-US'
@@ -425,6 +424,7 @@ export default function Home() {
                           {t.pendingSummary}
                         </p>
                         <p className="font-bold text-sm text-amber-300">
+                          {data.symbol}{' '}
                           {data.pending.toLocaleString(
                             language === 'en'
                               ? 'en-US'
