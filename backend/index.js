@@ -377,6 +377,34 @@ app.post('/families', authenticateToken, async (req, res) => {
   }
 });
 
+// Alterar uma família
+app.put('/families/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { name, password } = req.body;
+  try {
+    const user = await prisma.users.findUnique({
+      where: { id: req.user.userId },
+    });
+    if (!user || !user.is_super_user)
+      return res.status(403).json({ error: 'Acesso negado.' });
+
+    const data = {};
+    if (name) data.name = name;
+    if (password) {
+      data.password_hash = await bcrypt.hash(password, 10);
+    }
+
+    const updated = await prisma.families.update({
+      where: { id },
+      data,
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error('ERRO DETALHADO:', error);
+    res.status(500).json({ error: 'Erro ao atualizar família.' });
+  }
+});
+
 // Buscar todas as moedas
 app.get('/currencies', async (req, res) => {
   try {
