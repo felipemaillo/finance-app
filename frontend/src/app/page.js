@@ -324,15 +324,16 @@ export default function Home() {
               size={18}
               className="text-blue-600 dark:text-blue-400 shrink-0 mr-3"
             />
+            {/* Container do Carrossel de Meses */}
             <div
               ref={monthScrollRef}
-              className="flex gap-2 overflow-x-auto no-scrollbar pb-1 cursor-grab select-none"
+              className="flex gap-2 overflow-x-auto no-scrollbar pb-1 cursor-grab select-none w-full"
             >
               {t.months.map((m, i) => (
                 <button
                   key={m}
                   onClick={() => setCurrentMonth(i + 1)}
-                  className={`px-5 py-2 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${currentMonth === i + 1 ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'}`}
+                  className={`px-5 py-2 rounded-2xl text-sm font-bold transition-all whitespace-nowrap shrink-0 ${currentMonth === i + 1 ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'}`}
                 >
                   {m}
                 </button>
@@ -367,14 +368,22 @@ export default function Home() {
                     <h2 className="text-4xl font-black mb-1">
                       {data.symbol}{' '}
                       {data.balance.toLocaleString(
-                        language === 'en' ? 'en-US' : 'pt-BR',
+                        language === 'en'
+                          ? 'en-US'
+                          : language === 'it'
+                            ? 'it-IT'
+                            : 'pt-BR',
                         { minimumFractionDigits: 2 },
                       )}
                     </h2>
                     <div className="flex items-center gap-2 mb-6 text-[10px] font-bold bg-white/10 w-fit px-3 py-1 rounded-full border border-white/10">
                       <Clock size={12} /> {t.projectedBalance}: {data.symbol}{' '}
                       {data.projected.toLocaleString(
-                        language === 'en' ? 'en-US' : 'pt-BR',
+                        language === 'en'
+                          ? 'en-US'
+                          : language === 'it'
+                            ? 'it-IT'
+                            : 'pt-BR',
                         { minimumFractionDigits: 2 },
                       )}
                     </div>
@@ -384,7 +393,15 @@ export default function Home() {
                           {t.income}
                         </p>
                         <p className="font-bold text-sm text-green-300">
-                          +{data.income}
+                          +
+                          {data.income.toLocaleString(
+                            language === 'en'
+                              ? 'en-US'
+                              : language === 'it'
+                                ? 'it-IT'
+                                : 'pt-BR',
+                            { minimumFractionDigits: 2 },
+                          )}
                         </p>
                       </div>
                       <div>
@@ -392,7 +409,15 @@ export default function Home() {
                           {t.expense}
                         </p>
                         <p className="font-bold text-sm text-red-300">
-                          -{data.expense}
+                          -
+                          {data.expense.toLocaleString(
+                            language === 'en'
+                              ? 'en-US'
+                              : language === 'it'
+                                ? 'it-IT'
+                                : 'pt-BR',
+                            { minimumFractionDigits: 2 },
+                          )}
                         </p>
                       </div>
                       <div>
@@ -400,7 +425,14 @@ export default function Home() {
                           {t.pendingSummary}
                         </p>
                         <p className="font-bold text-sm text-amber-300">
-                          {data.pending}
+                          {data.pending.toLocaleString(
+                            language === 'en'
+                              ? 'en-US'
+                              : language === 'it'
+                                ? 'it-IT'
+                                : 'pt-BR',
+                            { minimumFractionDigits: 2 },
+                          )}
                         </p>
                       </div>
                     </div>
@@ -474,7 +506,14 @@ export default function Home() {
                     >
                       {trans.type === 'INCOME' ? '+' : '-'}{' '}
                       {trans.currency?.symbol}
-                      {Number(trans.amount).toFixed(2)}
+                      {Number(trans.amount).toLocaleString(
+                        language === 'en'
+                          ? 'en-US'
+                          : language === 'it'
+                            ? 'it-IT'
+                            : 'pt-BR',
+                        { minimumFractionDigits: 2 },
+                      )}
                     </p>
                   </div>
                 </div>
