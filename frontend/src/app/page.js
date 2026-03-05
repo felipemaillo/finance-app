@@ -48,6 +48,9 @@ const translations = {
     loading: 'Carregando dados...',
     admin: 'Gerenciar Famílias',
     stats: 'Estatísticas',
+    carryBalance: 'Transferir saldo do mês anterior',
+    carryDone: 'Saldo do mês anterior transferido',
+    prevBalance: 'Saldo mês anterior',
     months: [
       'Janeiro',
       'Fevereiro',
@@ -86,6 +89,9 @@ const translations = {
     loading: 'Loading data...',
     admin: 'Manage Families',
     stats: 'Statistics',
+    carryBalance: 'Transfer previous month balance',
+    carryDone: 'Previous month balance transferred',
+    prevBalance: 'Previous month balance',
     months: [
       'January',
       'February',
@@ -124,6 +130,9 @@ const translations = {
     loading: 'Caricamento dati...',
     admin: 'Gestisci Famiglie',
     stats: 'Statistiche',
+    carryBalance: 'Trasferisci saldo del mese precedente',
+    carryDone: 'Saldo del mese precedente trasferito',
+    prevBalance: 'Saldo mese precedente',
     months: [
       'Gennaio',
       'Febbraio',
@@ -161,6 +170,9 @@ export default function Home() {
   const [selectedNature, setSelectedNature] = useState('all');
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
 
+  const [prevTotalsByCurrency, setPrevTotalsByCurrency] = useState({});
+  const [carriedThisMonth, setCarriedThisMonth] = useState(false);
+
   const now = new Date();
   const [currentMonth, setCurrentMonth] = useState(now.getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
@@ -192,6 +204,30 @@ export default function Home() {
     }
   }, [mounted, t.userDefault]);
 
+  const computeTotals = (list) => {
+    return list.reduce((acc, trans) => {
+      const code = trans.currency?.code || '???';
+      if (!acc[code])
+        acc[code] = {
+          id: trans.currency?.id,
+          symbol: trans.currency?.symbol || '$',
+          income: 0,
+          expense: 0,
+          pending: 0,
+          balance: 0,
+          projected: 0,
+        };
+      const val = Number(trans.amount);
+      if (trans.type === 'INCOME') acc[code].income += val;
+      else
+        trans.is_paid ? (acc[code].expense += val) : (acc[code].pending += val);
+      acc[code].balance = acc[code].income - acc[code].expense;
+      acc[code].projected =
+        acc[code].income - acc[code].expense - acc[code].pending;
+      return acc;
+    }, {});
+  };
+
   const loadTransactions = async () => {
     const token = localStorage.getItem('userToken');
     const familyId = localStorage.getItem('familyId');
@@ -210,6 +246,22 @@ export default function Home() {
         const data = await res.json();
         setTransactions(data);
       }
+
+      // fetch previous month data in order to compute carry balance
+      const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+      const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+      const prevRes = await fetch(
+        `${API_URL}/transactions/${familyId}?month=${prevMonth}&year=${prevYear}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (prevRes.ok) {
+        const prevData = await prevRes.json();
+        setPrevTotalsByCurrency(computeTotals(prevData));
+      }
+
+      // check if the carry operation was already done
+      const carriedKey = `carried_${familyId}_${currentYear}_${currentMonth}`;
+      setCarriedThisMonth(localStorage.getItem(carriedKey) === 'true');
     } catch (error) {
       console.error('Errore:', error);
     } finally {
@@ -220,6 +272,51 @@ export default function Home() {
   useEffect(() => {
     if (mounted) loadTransactions();
   }, [currentMonth, currentYear, mounted]);
+
+  const hasPositivePrev = useMemo(() => {
+    return Object.values(prevTotalsByCurrency).some((d) => d.balance > 0);
+  }, [prevTotalsByCurrency]);
+
+  const transferPreviousBalances = async () => {
+    const token = localStorage.getItem('userToken');
+    const familyId = localStorage.getItem('familyId');
+    const userId = localStorage.getItem('userId');
+    if (!token || !familyId || !userId) return;
+
+    let anyCreated = false;
+    for (const [code, data] of Object.entries(prevTotalsByCurrency)) {
+      if (data.balance > 0) {
+        const date = new Date(currentYear, currentMonth - 1, 1).toISOString();
+        try {
+          await fetch(`${API_URL}/transactions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              description: t.prevBalance,
+              amount: data.balance,
+              type: 'INCOME',
+              date,
+              family_id: familyId,
+              currency_id: data.id,
+              user_id: userId,
+            }),
+          });
+          anyCreated = true;
+        } catch (err) {
+          console.error('Erro criando transação de saldo anterior:', err);
+        }
+      }
+    }
+    if (anyCreated) {
+      const key = `carried_${familyId}_${currentYear}_${currentMonth}`;
+      localStorage.setItem(key, 'true');
+      setCarriedThisMonth(true);
+      loadTransactions();
+    }
+  };
 
   // Cálculos de Filtro e Totais
   const filteredTransactions = useMemo(() => {
@@ -238,26 +335,7 @@ export default function Home() {
   }, [transactions, selectedCategory, selectedNature]);
 
   const totalsByCurrency = useMemo(() => {
-    return filteredTransactions.reduce((acc, trans) => {
-      const code = trans.currency?.code || '???';
-      if (!acc[code])
-        acc[code] = {
-          symbol: trans.currency?.symbol || '$',
-          income: 0,
-          expense: 0,
-          pending: 0,
-          balance: 0,
-          projected: 0,
-        };
-      const val = Number(trans.amount);
-      if (trans.type === 'INCOME') acc[code].income += val;
-      else
-        trans.is_paid ? (acc[code].expense += val) : (acc[code].pending += val);
-      acc[code].balance = acc[code].income - acc[code].expense;
-      acc[code].projected =
-        acc[code].income - acc[code].expense - acc[code].pending;
-      return acc;
-    }, {});
+    return computeTotals(filteredTransactions);
   }, [filteredTransactions]);
 
   if (!mounted)
@@ -366,6 +444,23 @@ export default function Home() {
           </div>
         ) : (
           <>
+            {/* botão de transferência de saldo anterior */}
+            {hasPositivePrev && !carriedThisMonth && (
+              <div className="mb-4 text-center">
+                <button
+                  onClick={transferPreviousBalances}
+                  className="bg-green-600 hover:bg-green-700 transition-colors text-white px-4 py-2 rounded-lg"
+                >
+                  {t.carryBalance}
+                </button>
+              </div>
+            )}
+            {hasPositivePrev && carriedThisMonth && (
+              <p className="text-sm text-green-700 text-center">
+                {t.carryDone}
+              </p>
+            )}
+
             {/* DASHBOARD CARDS */}
             <div className="space-y-4">
               {Object.entries(totalsByCurrency).map(([code, data]) => (
@@ -452,6 +547,19 @@ export default function Home() {
                         </p>
                       </div>
                     </div>
+                    {prevTotalsByCurrency[code] && prevTotalsByCurrency[code].balance !== 0 && (
+                      <p className="text-[10px] mt-2 opacity-70">
+                        {t.prevBalance}: {data.symbol}{' '}
+                        {prevTotalsByCurrency[code].balance.toLocaleString(
+                          language === 'en'
+                            ? 'en-US'
+                            : language === 'it'
+                              ? 'it-IT'
+                              : 'pt-BR',
+                          { minimumFractionDigits: 2 },
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}

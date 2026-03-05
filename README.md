@@ -7,6 +7,7 @@ Um aplicativo moderno de controle financeiro desenvolvido com Next.js 14 e Node.
 📊 Saldo Projetado: Sistema inteligente que diferencia o saldo atual do saldo previsto, ajudando a antecipar furos no orçamento.
 🚨 Alertas Visuais: Notificações em tempo real (animações e cores) para saldos negativos ou riscos financeiros.
 📅 Navegação Temporal: Filtros intuitivos por mês e ano para controle histórico.
+🔁 Saldo Anterior: possibilidade de transferir automaticamente o saldo positivo do mês anterior para o mês corrente em cada carteira/moeda.
 📱 Mobile First: Totalmente responsivo e otimizado para uso em smartphones.
 🏗️ Arquitetura do Projeto
 O projeto é estruturado como um monorepo para facilitar o gerenciamento:
