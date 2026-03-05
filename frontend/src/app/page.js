@@ -9,8 +9,6 @@ import {
   LogOut,
   Calendar,
   Tag,
-  Sun,
-  Moon,
   Filter,
   CheckCircle2,
   Clock,
@@ -20,6 +18,7 @@ import {
 } from 'lucide-react';
 import TransactionForm from './components/TransactionForm';
 import Loading from './components/Loading';
+import ThemeLanguageSelector from './components/ThemeLanguageSelector';
 import { API_URL } from './lib/api';
 import { useAppContext } from './context/AppContext';
 
@@ -152,7 +151,7 @@ const translations = {
 
 export default function Home() {
   const router = useRouter();
-  const { language, setLanguage, theme, setTheme, mounted } = useAppContext();
+  const { language, mounted } = useAppContext();
   const t = translations[language] || translations.it;
 
   const monthScrollRef = useRef(null);
@@ -356,12 +355,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-              className="p-2.5 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-yellow-400"
-            >
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
+            <ThemeLanguageSelector />
 
             {/* ÁREA ADMIN */}
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 p-1.5 rounded-2xl">
@@ -547,19 +541,20 @@ export default function Home() {
                         </p>
                       </div>
                     </div>
-                    {prevTotalsByCurrency[code] && prevTotalsByCurrency[code].balance !== 0 && (
-                      <p className="text-[10px] mt-2 opacity-70">
-                        {t.prevBalance}: {data.symbol}{' '}
-                        {prevTotalsByCurrency[code].balance.toLocaleString(
-                          language === 'en'
-                            ? 'en-US'
-                            : language === 'it'
-                              ? 'it-IT'
-                              : 'pt-BR',
-                          { minimumFractionDigits: 2 },
-                        )}
-                      </p>
-                    )}
+                    {prevTotalsByCurrency[code] &&
+                      prevTotalsByCurrency[code].balance !== 0 && (
+                        <p className="text-[10px] mt-2 opacity-70">
+                          {t.prevBalance}: {data.symbol}{' '}
+                          {prevTotalsByCurrency[code].balance.toLocaleString(
+                            language === 'en'
+                              ? 'en-US'
+                              : language === 'it'
+                                ? 'it-IT'
+                                : 'pt-BR',
+                            { minimumFractionDigits: 2 },
+                          )}
+                        </p>
+                      )}
                   </div>
                 </div>
               ))}
